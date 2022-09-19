@@ -7,6 +7,7 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.NamedQueries;
 import javax.persistence.NamedQuery;
@@ -51,14 +52,14 @@ public class Like {
      * 日報を作成した従業員のid
      */
     @ManyToOne
-    @Column(name = JpaConst.LIK_COL_EMP, nullable = false)
+    @JoinColumn(name = JpaConst.LIK_COL_EMP, nullable = false)
     private Employee employee;
 
     /**
      * いいねされたレポートのid
      */
     @ManyToOne
-    @Column(name = JpaConst.LIK_COL_REP, nullable = false)
+    @JoinColumn(name = JpaConst.LIK_COL_REP, nullable = false)
     private Report report;
 
     /**
