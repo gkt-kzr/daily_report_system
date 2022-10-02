@@ -6,6 +6,10 @@
 <c:set var="actRep" value="${ForwardConst.ACT_REP.getValue()}" />
 <c:set var="commIdx" value="${ForwardConst.CMD_INDEX.getValue()}" />
 <c:set var="commEdt" value="${ForwardConst.CMD_EDIT.getValue()}" />
+<c:set var="commShow" value="${ForwardConst.CMD_SHOW.getValue()}" />
+<c:set var="commLcreate" value="${ForwardConst.CMD_LCREATE.getValue()}" />
+<c:set var="commLdestroy" value="${ForwardConst.CMD_LDESTROY.getValue()}" />
+
 
 <c:import url="/WEB-INF/views/layout/app.jsp">
     <c:param name="content">
@@ -28,8 +32,17 @@
                     <td><pre><c:out value="${report.content}" /></pre></td>
                 </tr>
                 <tr>
-                    <th>♡</th>
-                    <td>いいねの数</td>
+                    <th>
+                        <c:choose>
+                            <c:when test="${liked == 0}">
+                                <a href="<c:url value='?action=${actRep}&command=${commLcreate}&id=${report.id}' />">♡</a>
+                            </c:when>
+                            <c:otherwise>
+                                <a href="<c:url value='?action=${actRep}&command=${commLdestroy}&id=${report.id}' />">♥</a>
+                            </c:otherwise>
+                        </c:choose>
+                    </th>
+                    <td><c:out value="${like_count}" />いいね</td>
                 <tr>
                     <th>登録日時</th>
                     <fmt:parseDate value="${report.createdAt}" pattern="yyyy-MM-dd'T'HH:mm:ss" var="createDay" type="date" />

@@ -6,12 +6,16 @@ import java.util.List;
 
 import javax.servlet.ServletException;
 
+import actions.views.EmployeeConverter;
 import actions.views.EmployeeView;
+import actions.views.LikeView;
+import actions.views.ReportConverter;
 import actions.views.ReportView;
 import constants.AttributeConst;
 import constants.ForwardConst;
 import constants.JpaConst;
 import constants.MessageConst;
+import services.LikeService;
 import services.ReportService;
 
 /**
@@ -21,6 +25,7 @@ import services.ReportService;
 public class ReportAction extends ActionBase {
 
     private ReportService service;
+    private LikeService lservice;
 
     /**
      * メソッドを実行する
@@ -29,10 +34,13 @@ public class ReportAction extends ActionBase {
     public void process() throws ServletException, IOException {
 
         service = new ReportService();
+        lservice = new LikeService();
 
         //メソッドを実行
         invoke();
+
         service.close();
+        lservice.close();
     }
 
     /**
@@ -61,35 +69,36 @@ public class ReportAction extends ActionBase {
             removeSessionScope(AttributeConst.FLUSH);
         }
 
+
         //一覧画面を表示
         forward(ForwardConst.FW_REP_INDEX);
     }
 
-    /**
-     * 新規登録画面を表示する
-     * @throws ServletException
-     * @throws IOException
-     */
-    public void entryNew() throws ServletException, IOException {
 
-        putRequestScope(AttributeConst.TOKEN, getTokenId()); //CSRF対策用トークン
+/**
+ * 新規登録画面を表示する
+ * @throws ServletException
+ * @throws IOException
+ */
+public void entryNew() throws ServletException, IOException {
 
-        //日報情報の空インスタンスに、日報の日付＝今日の日付を設定する
-        ReportView rv = new ReportView();
-        rv.setReportDate(LocalDate.now());
-        putRequestScope(AttributeConst.REPORT, rv); //日付のみ設定済みの日報インスタンス
+    putRequestScope(AttributeConst.TOKEN, getTokenId()); //CSRF対策用トークン
 
-        //新規登録画面を表示
-        forward(ForwardConst.FW_REP_NEW);
+    //日報情報の空インスタンスに、日報の日付＝今日の日付を設定する
+    ReportView rv = new ReportView();
+    rv.setReportDate(LocalDate.now());
+    putRequestScope(AttributeConst.REPORT, rv); //日付のみ設定済みの日報インスタンス
 
-    }
+    //新規登録画面を表示
+    forward(ForwardConst.FW_REP_NEW);
 
-    /**
-     * 新規登録をを行う
-     * @throws ServletException
-     * @throws IOException
-     */
-    public void create() throws ServletException, IOException {
+}
+/**
+ * 新規登録を行う
+ * @throws ServletException
+ * @throws IOException
+ */
+public void create() throws ServletException, IOException {
 
     //CSRF対策 tokenのチェック
     if (checkToken()) {
@@ -115,6 +124,7 @@ public class ReportAction extends ActionBase {
                 getRequestParam(AttributeConst.REP_CONTENT),
                 null,
                 null);
+
         //日報情報登録
         List<String> errors = service.create(rv);
 
@@ -128,110 +138,190 @@ public class ReportAction extends ActionBase {
             //新規登録画面を再表示
             forward(ForwardConst.FW_REP_NEW);
 
-        }else {
+        } else {
             //登録中にエラーがなかった場合
 
-            //セッションに登録完了のフラッシュメッセージ
+            //セッションに登録完了のフラッシュメッセージを設定
             putSessionScope(AttributeConst.FLUSH, MessageConst.I_REGISTERED.getMessage());
 
             //一覧画面にリダイレクト
             redirect(ForwardConst.ACT_REP, ForwardConst.CMD_INDEX);
         }
     }
+}
+/**
+ * 詳細画面を表示する
+ * @throws ServletException
+ * @throws IOException
+ */
+public void show() throws ServletException, IOException {
+    //セッションからログイン中の従業員情報を取得
+    EmployeeView ev = (EmployeeView) getSessionScope(AttributeConst.LOGIN_EMP);
+    //idを条件に日報データを取得する
+    ReportView rv = service.findOne(toNumber(getRequestParam(AttributeConst.REP_ID)));
+
+    if (rv == null) {
+        //該当の日報データが存在しない場合はエラー画面を表示
+        forward(ForwardConst.FW_ERR_UNKNOWN);
+
+    } else {
+
+        putRequestScope(AttributeConst.REPORT, rv); //取得した日報データ
+
+    }
+    long liked = lservice.findOneLiked(EmployeeConverter.toModel(ev), ReportConverter.toModel(rv));
+    putRequestScope(AttributeConst.LIKED, liked);
+
+
+    long like_count = lservice.countAllLiked(ReportConverter.toModel(rv));
+    putRequestScope(AttributeConst.LIKE_COUNT, like_count);
+
+    //詳細画面を表示
+    forward(ForwardConst.FW_REP_SHOW);
+
+}
+
+/**
+ * 編集画面を表示する
+ * @throws ServletException
+ * @throws IOException
+ */
+public void edit() throws ServletException, IOException {
+
+    //idを条件に日報データを取得する
+    ReportView rv = service.findOne(toNumber(getRequestParam(AttributeConst.REP_ID)));
+
+    //セッションからログイン中の従業員情報を取得
+    EmployeeView ev = (EmployeeView) getSessionScope(AttributeConst.LOGIN_EMP);
+
+    if (rv == null || ev.getId() != rv.getEmployee().getId()) {
+        //該当の日報データが存在しない、または
+        //ログインしている従業員が日報の作成者でない場合はエラー画面を表示
+        forward(ForwardConst.FW_ERR_UNKNOWN);
+
+    } else {
+
+        putRequestScope(AttributeConst.TOKEN, getTokenId()); //CSRF対策用トークン
+        putRequestScope(AttributeConst.REPORT, rv); //取得した日報データ
+
+        //編集画面を表示
+        forward(ForwardConst.FW_REP_EDIT);
     }
 
-    /**
-     * 詳細画面を表示する
-     * @throws ServletException
-     * @throws IOException
-     */
-    public void show() throws ServletException, IOException {
+}
+/**
+ * 更新を行う
+ * @throws ServletException
+ * @throws IOException
+ */
+public void update() throws ServletException, IOException {
+
+    //CSRF対策 tokenのチェック
+    if (checkToken()) {
 
         //idを条件に日報データを取得する
         ReportView rv = service.findOne(toNumber(getRequestParam(AttributeConst.REP_ID)));
 
-        if (rv == null) {
-            //外套のデータが存在しない場合はエラー画面を表示
-            forward(ForwardConst.FW_ERR_UNKNOWN);
+        //入力された日報内容を設定する
+        rv.setReportDate(toLocalDate(getRequestParam(AttributeConst.REP_DATE)));
+        rv.setTitle(getRequestParam(AttributeConst.REP_TITLE));
+        rv.setContent(getRequestParam(AttributeConst.REP_CONTENT));
 
-        }else {
-            putRequestScope(AttributeConst.REPORT, rv); //取得した日報データ
+        //日報データを更新する
+        List<String> errors = service.update(rv);
 
-            //詳細画面を表示
-            forward(ForwardConst.FW_REP_SHOW);
-        }
-
-    }
-
-    /**
-     * 編集画面を表示する
-     * @throws ServletException
-     * @throws IOException
-     */
-    public void edit() throws ServletException, IOException{
-
-        //idを条件に日報データを取得くする
-        ReportView rv = service.findOne(toNumber(getRequestParam(AttributeConst.REP_ID)));
-
-        //セッションからログイン中の従業員情報を取得
-        EmployeeView ev = (EmployeeView) getSessionScope(AttributeConst.LOGIN_EMP);
-
-        if (rv == null || ev.getId() != rv.getEmployee().getId()) {
-            //該当の日報データが存在しない、または
-            //ログインしている従業員が日報の作成者でない場合はエラー画面を表示
-            forward(ForwardConst.FW_ERR_UNKNOWN);
-
-        } else {
+        if (errors.size() > 0) {
+            //更新中にエラーが発生した場合
 
             putRequestScope(AttributeConst.TOKEN, getTokenId()); //CSRF対策用トークン
-            putRequestScope(AttributeConst.REPORT, rv); //取得した日報データ
+            putRequestScope(AttributeConst.REPORT, rv); //入力された日報情報
+            putRequestScope(AttributeConst.ERR, errors); //エラーのリスト
 
-            //編集画面を表示
+            //編集画面を再表示
             forward(ForwardConst.FW_REP_EDIT);
+        } else {
+            //更新中にエラーがなかった場合
+
+            //セッションに更新完了のフラッシュメッセージを設定
+            putSessionScope(AttributeConst.FLUSH, MessageConst.I_UPDATED.getMessage());
+
+            //一覧画面にリダイレクト
+            redirect(ForwardConst.ACT_REP, ForwardConst.CMD_INDEX);
+
         }
     }
+}
 
-    /**
-     * 更新を行う
-     * @throws ServletException
-     * @throws IOException
-     */
-    public void update() throws ServletException, IOException {
+public void like_create() throws ServletException, IOException {
 
-        //CSRF対策 tokenのチェック
-        if (checkToken()) {
+    //セッションからログイン中の従業員情報を取得
+    EmployeeView ev = (EmployeeView) getSessionScope(AttributeConst.LOGIN_EMP);
+    ReportView rv = service.findOne(toNumber(getRequestParam(AttributeConst.REP_ID)));
 
-            //idを条件に日報データを取得する
-            ReportView rv = service.findOne(toNumber(getRequestParam(AttributeConst.REP_ID)));
+    if (rv == null) {
+        //該当の日報データが存在しない場合はエラー画面を表示
+        forward(ForwardConst.FW_ERR_UNKNOWN);
 
-            //入力された日報内容を設定する
-            rv.setReportDate(toLocalDate(getRequestParam(AttributeConst.REP_DATE)));
-            rv.setTitle(getRequestParam(AttributeConst.REP_TITLE));
-            rv.setContent(getRequestParam(AttributeConst.REP_CONTENT));
+    } else {
 
-            //日報データを更新する
-            List<String> errors = service.update(rv);
+        putRequestScope(AttributeConst.REPORT, rv); //取得した日報データ
 
-            if (errors.size() > 0) {
-                //更新中にエラーが発生した場合
-
-                putRequestScope(AttributeConst.TOKEN, getTokenId()); //CSRF対策用トークン
-                putRequestScope(AttributeConst.REPORT, rv); //入力された日報情報
-                putRequestScope(AttributeConst.ERR, errors); //エラーのリスト
-
-                //編集画面を再表示
-                forward(ForwardConst.FW_REP_EDIT);
-            } else {
-                //更新中にエラーがなかった場合
-
-                //セッションに更新完了のフラッシュメッセージを設定
-                putSessionScope(AttributeConst.FLUSH, MessageConst.I_UPDATED.getMessage());
-
-                //一覧画面にリダイレクト
-                redirect(ForwardConst.ACT_REP, ForwardConst.CMD_INDEX);
-
-            }
-        }
     }
+
+
+    LikeView lv = new LikeView(
+            null,
+            ev,
+            rv,
+            null,
+            null);
+
+    lservice.createLike(lv);
+
+    long liked = lservice.findOneLiked(EmployeeConverter.toModel(ev), ReportConverter.toModel(rv));
+    putRequestScope(AttributeConst.LIKED, liked);
+
+
+    long like_count = lservice.countAllLiked(ReportConverter.toModel(rv));
+    putRequestScope(AttributeConst.LIKE_COUNT, like_count);
+
+    //詳細画面を表示
+    forward(ForwardConst.FW_REP_SHOW);
+
 
 }
+
+public void like_destroy() throws ServletException, IOException {
+
+    //セッションからログイン中の従業員情報を取得
+    EmployeeView ev = (EmployeeView) getSessionScope(AttributeConst.LOGIN_EMP);
+    ReportView rv = service.findOne(toNumber(getRequestParam(AttributeConst.REP_ID)));
+
+    if (rv == null) {
+        //該当の日報データが存在しない場合はエラー画面を表示
+        forward(ForwardConst.FW_ERR_UNKNOWN);
+
+    } else {
+
+        putRequestScope(AttributeConst.REPORT, rv); //取得した日報データ
+
+    }
+
+    lservice.destroyLiked(EmployeeConverter.toModel(ev), ReportConverter.toModel(rv));
+
+    long liked = lservice.findOneLiked(EmployeeConverter.toModel(ev), ReportConverter.toModel(rv));
+    putRequestScope(AttributeConst.LIKED, liked);
+
+
+    long like_count = lservice.countAllLiked(ReportConverter.toModel(rv));
+    putRequestScope(AttributeConst.LIKE_COUNT, like_count);
+
+    //詳細画面を表示
+    forward(ForwardConst.FW_REP_SHOW);
+
+}
+
+
+
+}
+

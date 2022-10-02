@@ -92,5 +92,12 @@ public interface JpaConst {
     //指定した日報をいいねした従業員の件数を取得する
     String Q_LIK_COUNT_ALL_MINE = ENTITY_LIK + ".countAllMine";
     String Q_LIK_COUNT_ALL_MINE_DEF = "SELECT COUNT(l) FROM Like AS l WHERE l.report = :" + JPQL_PARM_REPORT;
+    //指定した従業員が指定した日報をいいねしている物があれば取得
+    String Q_LIK_GET_BY_EMP_AND_REP = ENTITY_LIK + ".getLiked";
+    String Q_LIK_GET_BY_EMP_AND_REP_DEF = "SELECT COUNT(l) FROM Like AS l WHERE l.employee = :" + JPQL_PARM_EMPLOYEE + " AND l.report = :" + JPQL_PARM_REPORT;
+    //指定した従業員が指定した日報をいいねしている物があれば削除
+    String Q_LIK_DESTROY_BY_EMP_AND_REP = ENTITY_LIK + ".destroyLiked";
+    String Q_LIK_DESTROY_BY_EMP_AND_REP_DEF = "DELETE FROM Like AS l WHERE l.employee = :" + JPQL_PARM_EMPLOYEE + " AND l.report = :" + JPQL_PARM_REPORT;
+
 
 }
